@@ -1,18 +1,27 @@
 import express from 'express';
 import path from 'path';
 import cors from 'cors';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 const PORT = 3000;
-const prisma = new PrismaClient();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret-jwt-key-2026';
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '12345678901234567890123456789012'; // 32 bytes
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+let supabase: ReturnType<typeof createClient> | null = null;
+if (supabaseUrl && supabaseKey && supabaseUrl !== 'your-supabase-url') {
+  supabase = createClient(supabaseUrl, supabaseKey);
+} else {
+  console.warn("⚠️ VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing. Supabase will not work.");
+}
 
 app.use(cors());
 app.use(express.json());
@@ -42,6 +51,9 @@ function decrypt(text: string) {
 
 // Authentication Middleware
 const authenticateToken = (req: any, res: any, next: any) => {
+  if (!supabase) {
+    return res.status(500).json({ error: 'Database is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.' });
+  }
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (token == null) return res.status(401).json({ error: 'Unauthorized' });
@@ -55,17 +67,32 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
 // API Routes
 app.post('/api/auth/login', async (req, res) => {
+  if (!supabase) {
+    return res.status(500).json({ error: 'Database is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.' });
+  }
+
   const { masterPassword } = req.body;
-  // Demo hardcoded password Eissa2026
   if (masterPassword === 'Eissa2026') {
-    let user = await prisma.user.findFirst();
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          masterPassword: await bcrypt.hash(masterPassword, 10),
-        }
-      });
+    let { data: users, error: findError } = await supabase.from('users').select('*').limit(1);
+    
+    if (findError) {
+      return res.status(500).json({ error: 'Database error. Make sure you have created the tables in Supabase SQL editor.', details: findError });
     }
+
+    let user = users && users.length > 0 ? users[0] : null;
+
+    if (!user) {
+      const hashed = await bcrypt.hash(masterPassword, 10);
+      const { data: newUser, error: createError } = await supabase.from('users').insert({
+        master_password: hashed
+      }).select().single();
+      
+      if (createError) {
+        return res.status(500).json({ error: 'Failed to create user', details: createError });
+      }
+      user = newUser;
+    }
+
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '24h' });
     res.json({ token });
   } else {
@@ -74,18 +101,28 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.get('/api/vault/emails', authenticateToken, async (req: any, res) => {
-  const emails = await prisma.email.findMany({
-    where: { userId: req.user.id },
-    include: { services: true }
-  });
-  
+  const { data: emails, error: emailError } = await supabase!
+    .from('emails')
+    .select('*, services(*)')
+    .eq('user_id', req.user.id);
+    
+  if (emailError) {
+    return res.status(500).json({ error: 'Failed to fetch data', details: emailError });
+  }
+
   // Decrypt credentials
-  const decryptedEmails = emails.map((email: any) => ({
-    ...email,
-    services: email.services.map((service: any) => ({
-      ...service,
+  const decryptedEmails = (emails || []).map((email: any) => ({
+    id: email.id,
+    address: email.address,
+    services: (email.services || []).map((service: any) => ({
+      id: service.id,
+      name: service.name,
+      category: service.category,
+      status: service.status,
+      link: service.link,
+      deploymentType: service.deployment_type,
       credentials: service.credentials ? JSON.parse(decrypt(service.credentials) || '{}') : null,
-      configFiles: service.configFiles ? JSON.parse(service.configFiles) : null
+      configFiles: service.config_files ? JSON.parse(service.config_files) : null
     }))
   }));
 
@@ -95,45 +132,64 @@ app.get('/api/vault/emails', authenticateToken, async (req: any, res) => {
 app.post('/api/vault/emails', authenticateToken, async (req: any, res) => {
   const { address } = req.body;
   try {
-    const email = await prisma.email.create({
-      data: {
-        address,
-        userId: req.user.id
-      }
-    });
-    res.json(email);
-  } catch (e) {
-    res.status(400).json({ error: 'Email already exists or invalid data' });
+    const { data: email, error } = await supabase!
+      .from('emails')
+      .insert({ address, user_id: req.user.id })
+      .select()
+      .single();
+      
+    if (error) throw error;
+    res.json({ id: email.id, address: email.address });
+  } catch (e: any) {
+    res.status(400).json({ error: 'Email already exists or invalid data', details: e });
   }
 });
 
 app.post('/api/vault/services', authenticateToken, async (req: any, res) => {
   const { emailId, name, category, status, link, credentials, deploymentType, configFiles } = req.body;
   try {
-    const service = await prisma.service.create({
-      data: {
-        emailId,
+    const { data: service, error } = await supabase!
+      .from('services')
+      .insert({
+        email_id: emailId,
         name,
         category,
         status,
         link,
         credentials: encrypt(JSON.stringify(credentials || {})),
-        deploymentType,
-        configFiles: JSON.stringify(configFiles || {})
-      }
+        deployment_type: deploymentType,
+        config_files: JSON.stringify(configFiles || {})
+      })
+      .select()
+      .single();
+      
+    if (error) throw error;
+    
+    res.json({
+      id: service.id,
+      name: service.name,
+      category: service.category,
+      status: service.status,
+      link: service.link,
+      deploymentType: service.deployment_type,
+      emailId: service.email_id
     });
-    res.json(service);
-  } catch (e) {
+  } catch (e: any) {
     res.status(400).json({ error: 'Invalid data', details: e });
   }
 });
 
 app.delete('/api/vault/services/:id', authenticateToken, async (req: any, res) => {
   try {
-    await prisma.service.delete({ where: { id: req.params.id } });
+    const { error } = await supabase!
+      .from('services')
+      .delete()
+      .eq('id', req.params.id);
+      
+    if (error) throw error;
     res.json({ success: true });
-  } catch (e) {
-    res.status(400).json({ error: 'Failed to delete' });
+  } catch (e: any) {
+    res.status(400).json({ error: 'Failed to delete', details: e });
   }
 });
 

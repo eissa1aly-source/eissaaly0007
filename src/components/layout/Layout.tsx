@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, Mail, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { LayoutDashboard, Mail, Settings as SettingsIcon, LogOut, Cloud } from 'lucide-react';
 import { useStore } from '../../store';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -11,6 +11,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { path: '/', label: t('dashboard'), icon: <LayoutDashboard size={20} /> },
     { path: '/vault', label: t('emails'), icon: <Mail size={20} /> },
+    { path: '/workspace', label: 'Workspace', icon: <Cloud size={20} /> },
     { path: '/settings', label: t('settings', 'Settings'), icon: <SettingsIcon size={20} /> }
   ];
 
