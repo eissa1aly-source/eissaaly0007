@@ -1,0 +1,51 @@
+# ============================================================
+# 🚀 Multi-stage Dockerfile للإنتاج
+# ============================================================
+
+# 🔨 مرحلة البناء (Builder)
+FROM node:20-alpine AS builder
+
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+# تثبيت الاعتماديات
+COPY package*.json ./
+RUN npm ci && npm cache clean --force
+
+# نسخ الملفات
+COPY . .
+
+# إنشاء Prisma Client
+RUN npx prisma generate
+
+# بناء التطبيق
+RUN npm run build
+
+# 🏃 مرحلة التشغيل (Runner)
+FROM node:20-alpine
+
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+# نسخ الملفات الضرورية فقط
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+
+# تعطيل المراقبة في الإنتاج
+ENV NODE_ENV=production
+ENV DISABLE_HMR=true
+ENV WATCH=false
+
+# إنشاء مستخدم آمن
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+USER nodejs
+
+EXPOSE 5000
+
+CMD ["node", "dist/server.cjs"]
