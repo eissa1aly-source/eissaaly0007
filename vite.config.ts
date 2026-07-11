@@ -14,40 +14,31 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // ✅ تعطيل HMR في الإنتاج
       hmr: !isProduction,
-      // ✅ تعطيل المراقبة في الإنتاج لتجنب EMFILE
       watch: isProduction ? null : {
         usePolling: false,
-        ignored: ['**/node_modules/**', '**/dist/**', '**/*.log'],
+        ignored: ['**/node_modules/**', '**/dist/**'],
       },
     },
     build: {
       outDir: 'dist',
       sourcemap: !isProduction,
       minify: isProduction ? 'terser' : false,
-      terserOptions: isProduction ? {
-        compress: {
-          drop_console: true,
-          drop_debugger: true,
-        },
-      } : {},
       rollupOptions: {
         output: {
           manualChunks: {
             'react-vendor': ['react', 'react-dom', 'react-router-dom'],
             'supabase-vendor': ['@supabase/supabase-js'],
-            'ui-vendor': ['@react-three/fiber', '@react-three/drei'],
             'utils-vendor': ['axios', 'zustand', 'i18next', 'react-i18next'],
           },
         },
       },
-      chunkSizeWarningLimit: 300,
     },
+    // ✅ إضافة axios إلى optimizeDeps
     optimizeDeps: {
-      exclude: ['@react-three/fiber', '@react-three/drei', 'three'],
+      include: ['axios', 'react', 'react-dom', 'react-router-dom'],
+      exclude: ['@react-three/fiber', '@react-three/drei'],
     },
-    // ✅ تجاهل الملفات أثناء البناء
     define: {
       __DEV__: !isProduction,
     },
