@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --color-neon-cyan: #00F0FF;
+  --color-neon-pink: #FF2D95;
+  --color-neon-purple: #B026FF;
+  --color-neon-green: #39FF14;
+  --color-dark-bg: #0A0A0F;
+  --color-dark-card: #14141E;
+}
+
+body {
+  background-color: var(--color-dark-bg);
+  color: white;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Neon glow utilities */
+.glow-cyan {
+  box-shadow: 0 0 10px var(--color-neon-cyan), 0 0 20px var(--color-neon-cyan);
+}
+.glow-pink {
+  box-shadow: 0 0 10px var(--color-neon-pink), 0 0 20px var(--color-neon-pink);
+}
+.text-glow-cyan {
+  text-shadow: 0 0 8px var(--color-neon-cyan);
+}
+.text-glow-pink {
+  text-shadow: 0 0 8px var(--color-neon-pink);
+}
+.glassmorphism {
+  background: rgba(20, 20, 30, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.dir-rtl {
+  direction: rtl;
+}
+.dir-ltr {
+  direction: ltr;
+}
