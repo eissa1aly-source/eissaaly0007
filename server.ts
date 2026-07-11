@@ -85,7 +85,7 @@ app.post('/api/auth/login', async (req, res) => {
       const hashed = await bcrypt.hash(masterPassword, 10);
       const { data: newUser, error: createError } = await supabase.from('users').insert({
         master_password: hashed
-      }).select().single();
+      } as any).select().single();
       
       if (createError) {
         return res.status(500).json({ error: 'Failed to create user', details: createError });
@@ -132,14 +132,14 @@ app.get('/api/vault/emails', authenticateToken, async (req: any, res) => {
 app.post('/api/vault/emails', authenticateToken, async (req: any, res) => {
   const { address } = req.body;
   try {
-    const { data: email, error } = await supabase!
+    const { data: email, error } = await (supabase as any)
       .from('emails')
       .insert({ address, user_id: req.user.id })
       .select()
       .single();
       
     if (error) throw error;
-    res.json({ id: email.id, address: email.address });
+    res.json({ id: email?.id, address: email?.address });
   } catch (e: any) {
     res.status(400).json({ error: 'Email already exists or invalid data', details: e });
   }
@@ -148,7 +148,7 @@ app.post('/api/vault/emails', authenticateToken, async (req: any, res) => {
 app.post('/api/vault/services', authenticateToken, async (req: any, res) => {
   const { emailId, name, category, status, link, credentials, deploymentType, configFiles } = req.body;
   try {
-    const { data: service, error } = await supabase!
+    const { data: service, error } = await (supabase as any)
       .from('services')
       .insert({
         email_id: emailId,
@@ -166,13 +166,13 @@ app.post('/api/vault/services', authenticateToken, async (req: any, res) => {
     if (error) throw error;
     
     res.json({
-      id: service.id,
-      name: service.name,
-      category: service.category,
-      status: service.status,
-      link: service.link,
-      deploymentType: service.deployment_type,
-      emailId: service.email_id
+      id: service?.id,
+      name: service?.name,
+      category: service?.category,
+      status: service?.status,
+      link: service?.link,
+      deploymentType: service?.deployment_type,
+      emailId: service?.email_id
     });
   } catch (e: any) {
     res.status(400).json({ error: 'Invalid data', details: e });
