@@ -1,0 +1,36 @@
+# ============================================================
+# 🐳 Dockerfile مخصص لـ Pxxl (ذاكرة محدودة)
+# ============================================================
+
+FROM node:20-alpine
+
+# ✅ تثبيت OpenSSL فقط
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+# ✅ نسخ الملفات
+COPY package*.json ./
+
+# ✅ تثبيت الاعتماديات (بدون devDependencies)
+RUN npm install --production && npm cache clean --force
+
+COPY . .
+
+# ✅ إنشاء Prisma Client
+RUN npx prisma generate
+
+# ✅ بناء التطبيق مع تقليل حجم الملفات
+ENV NODE_ENV=production
+ENV DISABLE_HMR=true
+
+RUN npm run build
+
+# ✅ حذف الملفات غير الضرورية لتقليل الحجم
+RUN rm -rf src/ node_modules/.cache
+
+# ✅ فتح المنفذ
+EXPOSE 5000
+
+# ✅ تشغيل التطبيق
+CMD ["npm", "run", "start"]
