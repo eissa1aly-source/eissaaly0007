@@ -1,13 +1,130 @@
-<!doctype html>
-<html lang="en">
-  <head>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+    <title>نظام الخزنة الرقمية - Vault System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+        * { font-family: 'Cairo', sans-serif; }
+        body { background: #0A0A0F; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .glass { background: rgba(20, 20, 30, 0.8); backdrop-filter: blur(20px); }
+        .neon-glow { box-shadow: 0 0 40px rgba(0, 240, 255, 0.3), 0 0 80px rgba(176, 38, 255, 0.15); }
+        .neon-border { border: 1px solid rgba(0, 240, 255, 0.3); }
+        .btn-neon { background: linear-gradient(135deg, #00F0FF, #B026FF); transition: all 0.3s ease; }
+        .btn-neon:hover { transform: scale(1.05); box-shadow: 0 0 40px rgba(0, 240, 255, 0.4); }
+        .input-neon { background: rgba(20, 20, 30, 0.6); border: 1px solid rgba(0, 240, 255, 0.2); color: white; }
+        .input-neon:focus { border-color: #00F0FF; box-shadow: 0 0 20px rgba(0, 240, 255, 0.2); outline: none; }
+        .vault-card { background: rgba(20, 20, 30, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(0, 240, 255, 0.15); border-radius: 20px; transition: all 0.3s ease; }
+        .vault-card:hover { border-color: rgba(0, 240, 255, 0.4); box-shadow: 0 0 30px rgba(0, 240, 255, 0.1); transform: translateY(-5px); }
+        .hidden-data { filter: blur(8px); user-select: none; transition: all 0.3s ease; }
+        .hidden-data.revealed { filter: blur(0); user-select: text; }
+        .reveal-btn { background: rgba(255, 45, 149, 0.2); border: 1px solid rgba(255, 45, 149, 0.3); color: #FF2D95; border-radius: 8px; padding: 4px 12px; font-size: 12px; cursor: pointer; transition: all 0.3s ease; }
+        .reveal-btn:hover { background: rgba(255, 45, 149, 0.3); box-shadow: 0 0 20px rgba(255, 45, 149, 0.2); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-left: 6px; }
+        .status-connected { background: #39FF14; box-shadow: 0 0 10px rgba(57, 255, 20, 0.5); }
+        .status-disconnected { background: #FF2D95; box-shadow: 0 0 10px rgba(255, 45, 149, 0.5); }
+        .status-pending { background: #FFE135; box-shadow: 0 0 10px rgba(255, 225, 53, 0.5); }
+        .copy-btn { background: rgba(0, 240, 255, 0.1); border: none; color: #00F0FF; cursor: pointer; padding: 2px 8px; border-radius: 4px; font-size: 11px; transition: all 0.3s ease; }
+        .copy-btn:hover { background: rgba(0, 240, 255, 0.2); }
+    </style>
+</head>
+<body>
+    <div id="app" class="w-full max-w-7xl mx-auto p-4">
+        <!-- شاشة تسجيل الدخول -->
+        <div id="loginScreen" class="min-h-screen flex items-center justify-center">
+            <div class="glass neon-border neon-glow rounded-3xl p-10 w-full max-w-md">
+                <div class="text-center mb-8">
+                    <div class="text-5xl mb-4 animate-pulse">🔐</div>
+                    <h1 class="text-3xl font-bold text-white">نظام الخزنة الرقمية</h1>
+                    <p class="text-gray-400 mt-2 text-sm">أدخل كلمة المرور للوصول إلى بياناتك</p>
+                </div>
+                <div class="space-y-4">
+                    <input type="password" id="masterPassword" class="input-neon w-full rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="••••••••" />
+                    <button onclick="unlockVault()" class="btn-neon w-full rounded-xl py-3 text-white font-bold text-lg transition-all">🚀 فتح الخزنة</button>
+                </div>
+                <div id="loginError" class="text-red-500 text-center mt-4 text-sm hidden">❌ كلمة المرور غير صحيحة! حاول مرة أخرى.</div>
+                <div class="mt-6 text-center text-gray-500 text-xs border-t border-gray-700 pt-4"><span class="text-neon-cyan">●</span> نظام آمن ومشفر</div>
+            </div>
+        </div>
 
+        <!-- المحتوى الرئيسي -->
+        <div id="mainContent" class="hidden">
+            <div class="glass neon-border rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between">
+                <div class="flex items-center gap-3"><span class="text-2xl">🗄️</span><h1 class="text-xl font-bold text-white">الخزنة الرقمية</h1><span class="text-neon-cyan text-sm bg-neon-cyan/10 px-3 py-1 rounded-full">مقفل 🔒</span></div>
+                <div class="flex items-center gap-4"><span class="text-gray-400 text-sm" id="userInfo">مرحباً بك</span><button onclick="logout()" class="text-neon-pink hover:text-pink-400 text-sm transition-colors">🚪 تسجيل خروج</button></div>
+            </div>
+            <div class="glass neon-border rounded-2xl p-4 mb-6 flex flex-wrap gap-3 items-center">
+                <input type="text" id="searchInput" onkeyup="filterEmails()" class="input-neon flex-1 min-w-[200px] rounded-xl px-4 py-2 text-white" placeholder="🔍 بحث عن إيميل أو موقع..." />
+                <button onclick="addNewEmail()" class="btn-neon rounded-xl px-6 py-2 text-white font-bold">➕ إضافة إيميل</button>
+            </div>
+            <div id="emailsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+        </div>
+    </div>
+
+    <script>
+        const MASTER_PASSWORD = 'Eissa2026';
+        const emailData = [
+            { id: 1, email: 'eissaaly07@gmail.com', services: [{ name: 'Hangges', status: 'connected', link: 'https://hangges.com' }, { name: 'GitHub', status: 'connected', link: 'https://github.com' }, { name: 'Supabase', status: 'connected', link: 'https://supabase.com', credentials: { apiKey: 'sb_pub_xxxxx', secretKey: 'sb_sec_xxxxx' } }] },
+            { id: 2, email: 'eissaaly0707@gmail.com', services: [{ name: 'Docker', status: 'running', link: 'https://docker.com' }, { name: 'DeepSeek', status: 'connected', link: 'https://deepseek.com' }] }
+        ];
+
+        function unlockVault() {
+            const password = document.getElementById('masterPassword').value;
+            if (password === MASTER_PASSWORD) {
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+                renderEmails();
+                document.getElementById('loginError').classList.add('hidden');
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+                document.getElementById('masterPassword').value = '';
+                document.getElementById('masterPassword').focus();
+            }
+        }
+
+        function logout() {
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('mainContent').classList.add('hidden');
+            document.getElementById('masterPassword').value = '';
+            document.getElementById('loginError').classList.add('hidden');
+        }
+
+        function renderEmails(filter = '') {
+            const grid = document.getElementById('emailsGrid');
+            grid.innerHTML = '';
+            const filtered = emailData.filter(item => item.email.includes(filter.toLowerCase()));
+            if (filtered.length === 0) { grid.innerHTML = `<div class="col-span-full text-center py-20"><div class="text-6xl mb-4">🔍</div><h3 class="text-2xl text-gray-400">لا توجد نتائج</h3></div>`; return; }
+            filtered.forEach(emailItem => {
+                const card = document.createElement('div');
+                card.className = 'vault-card p-5';
+                let servicesHtml = '';
+                emailItem.services.forEach(service => {
+                    const statusClass = service.status === 'connected' ? 'status-connected' : service.status === 'running' ? 'status-pending' : 'status-disconnected';
+                    const statusText = service.status === 'connected' ? 'متوصل' : service.status === 'running' ? 'مشغل' : 'قيد الانتظار';
+                    let credentialsHtml = '';
+                    if (service.credentials) {
+                        credentialsHtml = `<div class="mt-3 space-y-2 text-sm bg-black/30 rounded-xl p-3">${Object.entries(service.credentials).map(([key, value]) => `<div class="flex items-center justify-between gap-2 border-b border-gray-700/50 pb-1"><span class="text-gray-400 text-xs">${key}:</span><span class="text-neon-cyan text-xs hidden-data" data-value="${value}">${value}</span><button onclick="toggleReveal(this)" class="reveal-btn text-[10px]">👁️ إظهار</button><button onclick="copyText('${value}')" class="copy-btn text-[10px]">📋</button></div>`).join('')}</div>`;
+                    }
+                    servicesHtml += `<div class="bg-black/30 rounded-xl p-3 mb-2"><div class="flex items-center justify-between flex-wrap gap-2"><div class="flex items-center gap-2"><span class="status-dot ${statusClass}"></span><span class="text-white font-medium">${service.name}</span><a href="${service.link}" target="_blank" class="text-neon-cyan text-xs hover:text-neon-pink transition-colors">🔗</a></div><span class="text-xs text-gray-400">${statusText}</span></div>${credentialsHtml}</div>`;
+                });
+                card.innerHTML = `<div class="flex items-start justify-between mb-4"><div><h2 class="text-lg font-bold text-white flex items-center gap-2"><span class="text-neon-cyan">📧</span>${emailItem.email}</h2><span class="text-xs text-gray-500">${emailItem.services.length} خدمة</span></div><div class="flex gap-2"><button onclick="editEmail(${emailItem.id})" class="text-xs text-neon-cyan hover:text-neon-pink transition-colors">✏️</button><button onclick="deleteEmail(${emailItem.id})" class="text-xs text-neon-pink hover:text-red-500 transition-colors">🗑️</button></div></div><div class="space-y-1">${servicesHtml}</div><div class="mt-3 pt-3 border-t border-gray-700/50 flex justify-between items-center"><button onclick="addService(${emailItem.id})" class="text-xs text-neon-cyan hover:text-neon-pink transition-colors">➕ إضافة خدمة</button><span class="text-[10px] text-gray-600">ID: ${emailItem.id}</span></div>`;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterEmails() { renderEmails(document.getElementById('searchInput').value); }
+        function toggleReveal(btn) { const parent = btn.parentElement; const hiddenSpan = parent.querySelector('.hidden-data'); if (hiddenSpan) { hiddenSpan.classList.toggle('revealed'); btn.textContent = hiddenSpan.classList.contains('revealed') ? '🙈 إخفاء' : '👁️ إظهار'; } }
+        function copyText(text) { navigator.clipboard.writeText(text).then(() => showToast('✅ تم النسخ!')).catch(() => { const textarea = document.createElement('textarea'); textarea.value = text; document.body.appendChild(textarea); textarea.select(); document.execCommand('copy'); textarea.remove(); showToast('✅ تم النسخ!'); }); }
+        function addNewEmail() { const newEmail = prompt('✏️ أدخل الإيميل الجديد:'); if (newEmail && newEmail.includes('@')) { emailData.push({ id: Date.now(), email: newEmail, services: [] }); renderEmails(document.getElementById('searchInput').value); showToast('✅ تم إضافة الإيميل!'); } }
+        function deleteEmail(id) { if (confirm('⚠️ هل أنت متأكد؟')) { const index = emailData.findIndex(e => e.id === id); if (index > -1) { emailData.splice(index, 1); renderEmails(document.getElementById('searchInput').value); showToast('🗑️ تم الحذف.'); } } }
+        function editEmail(id) { const item = emailData.find(e => e.id === id); if (item) { const newEmail = prompt('✏️ تعديل الإيميل:', item.email); if (newEmail && newEmail.includes('@')) { item.email = newEmail; renderEmails(document.getElementById('searchInput').value); showToast('✅ تم التحديث.'); } } }
+        function addService(emailId) { const item = emailData.find(e => e.id === emailId); if (item) { const name = prompt('✏️ اسم الخدمة:'); if (name) { const status = prompt('📊 الحالة (connected/running/pending):', 'connected'); const link = prompt('🔗 الرابط:', 'https://'); item.services.push({ name, status: status || 'pending', link: link || '#' }); renderEmails(document.getElementById('searchInput').value); showToast('✅ تمت الإضافة!'); } } }
+        function showToast(message) { const toast = document.createElement('div'); toast.className = 'fixed bottom-4 right-4 glass neon-border text-neon-cyan px-6 py-3 rounded-2xl text-sm z-50 shadow-neon-glow'; toast.textContent = message; document.body.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'all 0.5s ease'; setTimeout(() => toast.remove(), 500); }, 2500); }
+        document.getElementById('masterPassword').addEventListener('keydown', function(e) { if (e.key === 'Enter') unlockVault(); });
+        renderEmails();
+        console.log('✅ نظام الخزنة الرقمية جاهز! كلمة المرور: Eissa2026');
+    </script>
+</body>
+</html>
