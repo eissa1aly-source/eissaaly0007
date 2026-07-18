@@ -22,8 +22,16 @@ export default defineConfig(() => {
     build: {
       outDir: 'dist',
       sourcemap: !isProduction,
-      // ✅ تعطيل minify لتجنب مشكلة terser
-      minify: false,
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: isProduction,
+          drop_debugger: isProduction,
+        },
+        format: {
+          comments: false,
+        },
+      },
       rollupOptions: {
         output: {
           manualChunks: {
