@@ -30,7 +30,7 @@ if (supabaseUrl && supabaseKey && supabaseUrl !== 'your-supabase-url') {
 app.use(cors());
 app.use(express.json());
 
-// ✅ نقطة فحص الصحة (Health Check)
+// ✅ ✅ ✅ أضف هذا الجزء (الأهم) ✅ ✅ ✅
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -39,6 +39,11 @@ app.get('/health', (req, res) => {
     version: process.env.npm_package_version || '1.0.0'
   });
 });
+
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+// ✅ ✅ ✅ نهاية الجزء المضاف ✅ ✅ ✅
 
 // Encryption Utilities
 function encrypt(text: string) {
@@ -220,10 +225,6 @@ app.delete('/api/vault/services/:id', authenticateToken, async (req: any, res) =
   } catch (e: any) {
     res.status(400).json({ error: 'Failed to delete', details: e });
   }
-});
-
-app.get('/ping', (req, res) => {
-  res.status(200).send('pong');
 });
 
 async function startServer() {
