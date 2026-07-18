@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -7,24 +8,37 @@ import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { createClient } from '@supabase/supabase-js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret-jwt-key-2026';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '12345678901234567890123456789012'; // 32 bytes
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '12345678901234567890123456789012';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 let supabase: ReturnType<typeof createClient> | null = null;
 if (supabaseUrl && supabaseKey && supabaseUrl !== 'your-supabase-url') {
   supabase = createClient(supabaseUrl, supabaseKey);
 } else {
-  console.warn("⚠️ VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing. Supabase will not work.");
+  console.warn("⚠️ VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing.");
 }
 
 app.use(cors());
 app.use(express.json());
+
+// ✅ نقطة فحص الصحة (Health Check)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || '1.0.0'
+  });
+});
 
 // Encryption Utilities
 function encrypt(text: string) {
@@ -52,7 +66,7 @@ function decrypt(text: string) {
 // Authentication Middleware
 const authenticateToken = (req: any, res: any, next: any) => {
   if (!supabase) {
-    return res.status(500).json({ error: 'Database is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.' });
+    return res.status(500).json({ error: 'Database is not configured.' });
   }
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -68,7 +82,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
 // API Routes
 app.post('/api/auth/login', async (req, res) => {
   if (!supabase) {
-    return res.status(500).json({ error: 'Database is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.' });
+    return res.status(500).json({ error: 'Database is not configured.' });
   }
 
   const { masterPassword } = req.body;
@@ -76,7 +90,7 @@ app.post('/api/auth/login', async (req, res) => {
     let { data: users, error: findError } = await supabase.from('users').select('*').limit(1);
     
     if (findError) {
-      return res.status(500).json({ error: 'Database error. Make sure you have created the tables in Supabase SQL editor.', details: findError });
+      return res.status(500).json({ error: 'Database error.', details: findError });
     }
 
     let user = users && users.length > 0 ? users[0] : null;
@@ -101,7 +115,11 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.get('/api/vault/emails', authenticateToken, async (req: any, res) => {
-  const { data: emails, error: emailError } = await supabase!
+  if (!supabase) {
+    return res.status(500).json({ error: 'Database not configured.' });
+  }
+  
+  const { data: emails, error: emailError } = await supabase
     .from('emails')
     .select('*, services(*)')
     .eq('user_id', req.user.id);
@@ -110,7 +128,6 @@ app.get('/api/vault/emails', authenticateToken, async (req: any, res) => {
     return res.status(500).json({ error: 'Failed to fetch data', details: emailError });
   }
 
-  // Decrypt credentials
   const decryptedEmails = (emails || []).map((email: any) => ({
     id: email.id,
     address: email.address,
@@ -130,9 +147,13 @@ app.get('/api/vault/emails', authenticateToken, async (req: any, res) => {
 });
 
 app.post('/api/vault/emails', authenticateToken, async (req: any, res) => {
+  if (!supabase) {
+    return res.status(500).json({ error: 'Database not configured.' });
+  }
+  
   const { address } = req.body;
   try {
-    const { data: email, error } = await (supabase as any)
+    const { data: email, error } = await supabase
       .from('emails')
       .insert({ address, user_id: req.user.id })
       .select()
@@ -146,9 +167,13 @@ app.post('/api/vault/emails', authenticateToken, async (req: any, res) => {
 });
 
 app.post('/api/vault/services', authenticateToken, async (req: any, res) => {
+  if (!supabase) {
+    return res.status(500).json({ error: 'Database not configured.' });
+  }
+  
   const { emailId, name, category, status, link, credentials, deploymentType, configFiles } = req.body;
   try {
-    const { data: service, error } = await (supabase as any)
+    const { data: service, error } = await supabase
       .from('services')
       .insert({
         email_id: emailId,
@@ -180,8 +205,12 @@ app.post('/api/vault/services', authenticateToken, async (req: any, res) => {
 });
 
 app.delete('/api/vault/services/:id', authenticateToken, async (req: any, res) => {
+  if (!supabase) {
+    return res.status(500).json({ error: 'Database not configured.' });
+  }
+  
   try {
-    const { error } = await supabase!
+    const { error } = await supabase
       .from('services')
       .delete()
       .eq('id', req.params.id);
@@ -193,24 +222,38 @@ app.delete('/api/vault/services/:id', authenticateToken, async (req: any, res) =
   }
 });
 
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
+});
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+async function startServer() {
+  try {
+    if (process.env.NODE_ENV !== "production") {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+      console.log('✅ Vite middleware loaded for development');
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        if (req.path === '/health' || req.path === '/ping') return;
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+      console.log('✅ Production mode: serving static files from', distPath);
+    }
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`✅ Health check: http://localhost:${PORT}/health`);
+      console.log(`✅ Ping: http://localhost:${PORT}/ping`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
 }
 
 startServer();
